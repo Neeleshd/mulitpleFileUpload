@@ -8,8 +8,13 @@ const rateLimit = require("express-rate-limit");
 const path = require("path");
 const fs = require("fs");
 const pdf = require("html-pdf");
+const redis = require("redis");
+const redisClient = redis.createClient();
+const { promisify } = require("util");
 const app = express();
-
+redisClient.set = promisify(redisClient.set);
+redisClient.get = promisify(redisClient.get);
+redisClient.flushall = promisify(redisClient.flushall);
 (function () {
   // prevention of DOS attack by preventing the actual payload data
   app.use(express.json({ limit: "10kb" }));
@@ -38,18 +43,30 @@ app.get("/convert", async (req, res) => {
     const files = [];
     const promise = [];
     fs.readdirSync(dir).map((x) => files.push(x));
-    files.forEach((file) => {
-      console.log(path.join(__dirname, `./upload/${file.split(".")[0]}.pdf`));
-      const html = fs.readFileSync(
-        path.join(__dirname, `./upload/${file}`),
-        "utf-8"
-      );
-      const filePath = path.join(
-        __dirname,
-        `./upload/${file.split(".")[0]}.pdf`
-      );
-      promise.push(createPdfPromise(filePath, html));
+    files.forEach(async (file) => {
+
+      /** getting filename from redis */
+      const data = await redisClient.get(file);
+
+      /** if filename exists then don't proceed with this file as it must be taken by another process */
+      if (!data) {
+
+        /** set the value in redis */
+        await redisClient.set(file, 1);
+        const html = fs.readFileSync(
+          path.join(__dirname, `./upload/${file}`),
+          "utf-8"
+        );
+        const filePath = path.join(
+          __dirname,
+          `./upload/${file.split(".")[0]}.pdf`
+        );
+        promise.push(createPdfPromise(filePath, html));
+      }
     });
+    
+    /** after the process is done then remove all values from redis */
+    await redisClient.flushall();
     await Promise.all(promise);
 
     res
