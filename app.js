@@ -7,7 +7,7 @@ const bodyParser = require("body-parser");
 const rateLimit = require("express-rate-limit");
 const path = require("path");
 const fs = require("fs");
-const pdf = require('html-pdf');
+const pdf = require("html-pdf");
 const app = express();
 
 (function () {
@@ -34,18 +34,33 @@ const limit = rateLimit({
   message: "Too many requests", // message to send
 });
 app.get("/convert", async (req, res) => {
-  const files = [];
-  const promise = [];
-  fs.readdirSync(dir).map((x) => files.push(x));
-  files.forEach(file => {
-    console.log(path.join(__dirname, `./upload/${file.split('.')[0]}.pdf`))
-    const html = fs.readFileSync(path.join(__dirname, `./upload/${file}`), 'utf-8');
-    const filePath = path.join(__dirname, `./upload/${file.split('.')[0]}.pdf`);
-    promise.push(createPdfPromise(filePath, html));
-  });
-  await Promise.all(promise);
-  
-  res.status(200).json({ files });
+  try {
+    const files = [];
+    const promise = [];
+    fs.readdirSync(dir).map((x) => files.push(x));
+    files.forEach((file) => {
+      console.log(path.join(__dirname, `./upload/${file.split(".")[0]}.pdf`));
+      const html = fs.readFileSync(
+        path.join(__dirname, `./upload/${file}`),
+        "utf-8"
+      );
+      const filePath = path.join(
+        __dirname,
+        `./upload/${file.split(".")[0]}.pdf`
+      );
+      promise.push(createPdfPromise(filePath, html));
+    });
+    await Promise.all(promise);
+
+    res
+      .status(200)
+      .json({ statusCode: 200, message: "Task done successfully!" });
+  } catch (error) {
+    res.status(500).json({
+      statusCode: 500,
+      message: "Something went wrong",
+    });
+  }
 });
 
 // promisifying the function
@@ -56,9 +71,9 @@ const createPdfPromise = (filePath, html) => {
         reject(err);
       }
       resolve(data);
-    })
-  })
-}
+    });
+  });
+};
 
 const port = process.env.PORT || 8000;
 app.listen(port, () => {
