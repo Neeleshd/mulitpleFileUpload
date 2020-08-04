@@ -11,32 +11,23 @@ const pdf = require('html-pdf');
 const app = express();
 
 (function () {
+  // prevention of DOS attack by preventing the actual payload data
   app.use(express.json({ limit: "10kb" }));
+  // preventing cors error
   app.use(cors());
+
   app.use(helmet());
   app.use(xss());
   app.use(bodyParser.urlencoded({ extended: true }));
   app.use(bodyParser.json());
 })();
 
-app.use((req, res, next) => {
-  (function () {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Credentials", true);
-    res.header(
-      "Access-Control-Allow-Headers",
-      "Origin,X-Requested-With,Content-Type,Accept,Authorization, x-custom-token , X-XSRF-TOKEN"
-    );
-    res.header("Access-Control-Allow-Methods", "POST,GET,PUT,DELETE,OPTIONS");
-  }());
-  next();
-});
-
 const dir = path.join(__dirname, "./upload");
 if (!fs.existsSync(dir)) {
   fs.mkdirSync(dir);
 }
 
+// prevention of brute force attack by rate limiting
 const limit = rateLimit({
   max: 100, // max requests
   windowMs: 60 * 60 * 1000, // 1 Hour of 'ban' / lockout
@@ -57,14 +48,13 @@ app.get("/convert", async (req, res) => {
   res.status(200).json({ files });
 });
 
+// promisifying the function
 const createPdfPromise = (filePath, html) => {
   return new Promise((resolve, reject) => {
     pdf.create(html).toFile(filePath, (err, data) => {
       if (err) {
-        console.log('err', err)
         reject(err);
       }
-      console.log(data)
       resolve(data);
     })
   })
